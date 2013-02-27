@@ -1,0 +1,253 @@
+Index: services/tagservice.php
+===================================================================
+--- services/tagservice.php	(revision 4)
++++ services/tagservice.php	(working copy)
+@@ -138,6 +138,25 @@
+         return true;
+     }
+ 
++    function deleteTagsForUser($uId) {
++	$qmask = 'DELETE FROM %s USING %s, %s WHERE %s.bId = %s.bId AND %s.uId = %d';
++	$query = sprintf($qmask,
++		$this->getTableName(),
++		$this->getTableName(),
++		$GLOBALS['tableprefix'].'bookmarks',
++		$this->getTableName(),
++		$GLOBALS['tableprefix'].'bookmarks',
++		$GLOBALS['tableprefix'].'bookmarks',
++		$uId);
++
++        if (!($dbresult =& $this->db->sql_query($query))) {
++            message_die(GENERAL_ERROR, 'Could not delete tags', '', __LINE__, __FILE__, $query, $this->db);
++            return false;
++        }
++
++        return true;
++    }
++
+     function &getTagsForBookmark($bookmarkid) {
+         if (!is_int($bookmarkid)) {
+             message_die(GENERAL_ERROR, 'Could not get tags (invalid bookmarkid)', '', __LINE__, __FILE__, $query);
+Index: services/userservice.php
+===================================================================
+--- services/userservice.php	(revision 4)
++++ services/userservice.php	(working copy)
+@@ -126,7 +126,13 @@
+     }
+ 
+     function isAdmin($userid) {
+-        return false; //not implemented yet
++	if ( ($userinfo = $this->getUser($userid)) ) {
++		if ( $userinfo['uAdmin'] == 1 ) {
++			return true;
++		}
++	}
++
++	return false;
+     }
+ 
+     function getCurrentUserId() {
+@@ -340,6 +346,17 @@
+         return true;
+     }
+ 
++    function deleteUser($uId) {
++    	$query = 'DELETE FROM '. $this->getTableName() .' WHERE uId = '. intval($uId);
++
++        if (!($dbresult = & $this->db->sql_query($query))) {
++            message_die(GENERAL_ERROR, 'Could not delete user', '', __LINE__, __FILE__, $query, $this->db);
++            return false;
++        }
++
++	return true;
++    }
++
+     function sanitisePassword($password) {
+         return sha1(trim($password));
+     }
+@@ -421,6 +446,23 @@
+ 		}
+ 	}
+ 
++	function getAllUsers ( ) { 
++		$query = 'SELECT * FROM '. $this->getTableName();
++
++		if (! ($dbresult =& $this->db->sql_query($query)) ) {
++		    message_die(GENERAL_ERROR, 'Could not get users', '', __LINE__, __FILE__, $query, $this->db);
++		    return false;
++		}
++
++		$rows = array();
++
++		while ( $row = $this->db->sql_fetchrow($dbresult) ) {
++			$rows[] = $row;
++		}
++
++		return $rows;
++	}
++
+     // Properties
+     function getTableName()       { return $this->tablename; }
+     function setTableName($value) { $this->tablename = $value; }
+Index: services/bookmarkservice.php
+===================================================================
+--- services/bookmarkservice.php	(revision 4)
++++ services/bookmarkservice.php	(working copy)
+@@ -385,6 +385,17 @@
+         return true;
+     }
+ 
++    function deleteBookmarksForUser($uId) {
++        $query = 'DELETE FROM '. $GLOBALS['tableprefix'] .'bookmarks WHERE uId = '. intval($uId);
++
++        if (!($dbresult = & $this->db->sql_query($query))) {
++            message_die(GENERAL_ERROR, 'Could not delete bookmarks', '', __LINE__, __FILE__, $query, $this->db);
++            return false;
++        }
++
++        return true;
++    }
++
+     function countOthers($address) {
+         if (!$address) {
+             return false;
+Index: admin.php
+===================================================================
+--- admin.php	(revision 0)
++++ admin.php	(revision 0)
+@@ -0,0 +1,81 @@
++<?php
++
++/***************************************************************************
++Copyright (C) 2004 - 2006 Scuttle project, (C) 2006 Andreas Jaggi
++http://sourceforge.net/projects/scuttle/
++http://scuttle.org/
++http://x-way.waterwave.ch/
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++***************************************************************************/
++
++require_once('header.inc.php');
++
++$userservice = & ServiceFactory :: getServiceInstance('UserService');
++$tagservice = & ServiceFactory :: getServiceInstance('TagService');
++$bookmarkservice = & ServiceFactory :: getServiceInstance('BookmarkService');
++$templateservice = & ServiceFactory :: getServiceInstance('TemplateService');
++
++// Header variables
++$tplVars['subtitle'] = T_('Manage users');
++$tplVars['loadjs'] = true;
++
++if ( !$userservice->isLoggedOn() ) {
++    header('Location: '. createURL('login', ''));
++    exit();
++}
++
++$currentUser = $userservice->getCurrentUser();
++$currentUserID = $userservice->getCurrentUserId();
++$currentUsername = $currentUser[$userservice->getFieldName('username')];
++
++if ( !$userservice->isAdmin($currentUserID) ) {
++    header('Location: '. createURL('bookmarks', $currentUsername));
++    exit();
++}
++
++@list($url, $action, $user) = isset($_SERVER['PATH_INFO']) ? explode('/', $_SERVER['PATH_INFO']) : NULL;
++
++if ( $action ) {
++	switch ( $action ) {
++		case 'delete':
++			if ( $user && ($userinfo = $userservice->getUserByUsername($user)) ) {
++				$uId = $userinfo['uId'];
++
++				$userservice->deleteUser($uId);
++				$tagservice->deleteTagsForUser($uId);
++				// XXX: don't delete bookmarks before tags, else tags can't be deleted !!!
++				$bookmarkservice->deleteBookmarksForUser($uId);
++
++				$tplVars['msg'] = sprintf(T_('%s and all his bookmarks and tags were deleted.'), $user);
++			}
++			break;
++		default:
++			// DO NOTHING
++	}
++}
++
++$templatename = 'userlist.tpl';
++$users =& $userservice->getAllUsers();
++
++if ( !is_array($users) ) {
++	$users = array();
++}
++
++$tplVars['users'] =& $users;
++
++$templateservice->loadTemplate($templatename, $tplVars);
++
++?>
+Index: templates/userlist.tpl.php
+===================================================================
+--- templates/userlist.tpl.php	(revision 0)
++++ templates/userlist.tpl.php	(revision 0)
+@@ -0,0 +1,27 @@
++<?php
++
++$userservice =& ServiceFactory::getServiceInstance('UserService');
++
++$this->includeTemplate($GLOBALS['top_include']);
++
++echo '<ol id="bookmarks">';
++
++foreach(array_keys($users) as $key) {
++
++	echo '<li class="xfolkentry">'."\n";
++
++	echo '<div class="link">';
++	echo '<a href="'.createURL('profile', $users[$key][$userservice->getFieldname('username')]).'">'.$users[$key][$userservice->getFieldName('username')].'</a>';
++	echo '</div>';
++
++	echo '<div class="meta">';
++	echo '<a href="'.createURL('admin','delete/'.$users[$key][$userservice->getFieldname('username')]).'" onclick="return confirm(\''.T_('Are you sure?').'\');">'.T_('Delete').'</a>';
++	echo '</div>';
++
++	echo '</li>'."\n";
++}
++
++$this->includeTemplate('sidebar.tpl');
++$this->includeTemplate($GLOBALS['bottom_include']);
++
++?>
+Index: templates/toolbar.inc.php
+===================================================================
+--- templates/toolbar.inc.php	(revision 4)
++++ templates/toolbar.inc.php	(working copy)
+@@ -3,9 +3,17 @@
+ if ($userservice->isLoggedOn()) {
+     $cUser = $userservice->getCurrentUser();
+     $cUsername = $cUser[$userservice->getFieldName('username')];
++    $isAdmin = $userservice->isAdmin($cUser[$userservice->getFieldname('primary')]);
+ ?>
+ 
+     <ul id="navigation">
++<?php
++	if ( $isAdmin ) {
++?>
++        <li><a href="<?php echo createURL('admin', ''); ?>"><?php echo T_('Admin'); ?></a></li>
++<?php
++	}
++?>
+         <li><a href="<?php echo createURL('bookmarks', $cUsername); ?>"><?php echo T_('Bookmarks'); ?></a></li>
+         <li><a href="<?php echo createURL('watchlist', $cUsername); ?>"><?php echo T_('Watchlist'); ?></a></li>
+         <li><a href="<?php echo createURL('bookmarks', $cUsername . '?action=add'); ?>"><?php echo T_('Add a Bookmark'); ?></a></li>

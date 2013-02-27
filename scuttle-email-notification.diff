@@ -1,0 +1,19 @@
+Index: register.php
+===================================================================
+--- register.php	(revision 4)
++++ register.php	(working copy)
+@@ -80,6 +87,14 @@
+ 			$message = wordwrap($message, 70);
+ 			$headers = 'From: '. $adminemail;
+ 			$mail = mail($_POST['email'], sprintf(T_('%s Account Verification'), $sitename), $message, $headers);		
++			// notify admin
++			$message = sprintf(T_('%s New user registered: %s'), $sitename, $posteduser);
++			$message .= "\n\n".sprintf(T_('E-mail: %s'), $_POST['email']);
++			$message .= "\n".sprintf(T_('IP: %s'), $userinfo['uIp']);
++			$message .= "\n".sprintf(T_('uId: %s'), $userinfo['uId']);
++			$message = wordwrap($message, 70);
++			$headers = 'From: '. $adminemail;
++			$mail = mail($adminemail, sprintf(T_('%s New user registered: %s'), $sitename, $posteduser), $message, $headers);
+ 		  
+ 			$tplVars['msg'] = T_('Thank you for registering! Before you can start adding bookmarks you must verify your account - check your e-mail for instructions.');
+ 			

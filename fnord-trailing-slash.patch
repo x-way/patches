@@ -1,0 +1,30 @@
+--- httpd.c	23 Mar 2006 01:35:03 -0000	1.92
++++ httpd.c	5 Aug 2006 19:08:00 -0000
+@@ -834,6 +834,7 @@
+   int fd=-1;
+   char* accept;
+   time_t ims;
++  char* furl=url;
+   while (url[0]=='/') ++url;
+   getmimetype(url,explicit);
+   {
+@@ -856,8 +857,17 @@
+   }
+   if ((fd=open(url,O_RDONLY))>=0) {
+     if (fstat(fd,&st)) goto bad;
+-    /* no directories */
+-    if (S_ISDIR(st.st_mode)) goto bad;
++    /* no directories: redirect to url + '/' */
++    if (S_ISDIR(st.st_mode)) {
++        if (fd>=0) close(fd);
++        redirectboilerplate();
++        buffer_put(buffer_1,furl,strlen(furl));
++        buffer_puts(buffer_1,"/\r\n\r\n");
++        retcode=301;
++        dolog(0);
++        buffer_flush(buffer_1);
++        exit(0);
++    }
+     /* see if the peer accepts MIME type */
+     /* see if the document has been changed */
+     ims=parsedate(header(buf,buflen,"If-Modified-Since"));

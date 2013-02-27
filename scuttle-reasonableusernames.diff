@@ -1,0 +1,34 @@
+Index: services/userservice.php
+===================================================================
+--- services/userservice.php	(revision 4)
++++ services/userservice.php	(working copy)
+@@ -364,6 +381,14 @@
+         }
+     }
+ 
++    function isReasonableUsername($name) {
++	$pattern = "(xyz|xxx|abc|123|poker|naked|nude|sex|porn|spam|texas|invoice)";
++	if (eregi($pattern, $name)) {
++		return false;
++	}
++	return true;
++    }
++
+     function isValidEmail($email) {
+         if (eregi("^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,6})$", $email)) {
+             list($emailUser, $emailDomain) = split("@", $email);
+Index: register.php
+===================================================================
+--- register.php	(revision 4)
++++ register.php	(working copy)
+@@ -48,6 +51,10 @@
+ 		} elseif ($userservice->getUserByUsername($posteduser)) {
+ 			$tplVars['error'] = T_('This username already exists. Please make another choice.');
+ 		
++		// Check if username is reasonable
++		} elseif (!$userservice->isReasonableUsername($posteduser)) {
++			$tplVars['error'] = T_('I do not like this username. Please make another choice.');
++		
+ 		// Check that password is long enough
+ 		} elseif ($postedpass != '' && strlen($postedpass) < 6) {
+ 			$error = true;
