@@ -1,0 +1,73 @@
+diff -uNr linux-2.6.3/drivers/macintosh/adbhid.c linux-dev/drivers/macintosh/adbhid.c
+--- linux-2.6.3/drivers/macintosh/adbhid.c	2004-02-18 04:59:57.000000000 +0100
++++ linux-dev/drivers/macintosh/adbhid.c	2004-06-17 12:37:47.000000000 +0200
+@@ -436,6 +436,43 @@
+ #endif /* CONFIG_PMAC_BACKLIGHT */
+ 			input_report_key(&adbhid[id]->input, KEY_BRIGHTNESSUP, down);
+ 			break;
++
++		case 0xc:	/* videomode switch */
++			input_report_key(&adbhid[id]->input, KEY_SWITCHVIDEOMODE, down);
++			break;
++
++		case 0xd:	/* keyboard illumination toggle */
++			input_report_key(&adbhid[id]->input, KEY_KBDILLUMTOGGLE, down);
++			break;
++
++		case 0xe:	/* keyboard illumination decrease */
++			input_report_key(&adbhid[id]->input, KEY_KBDILLUMDOWN, down);
++			break;
++
++		case 0xf:
++			switch (data[1]) {
++			case 0x8f:
++			case 0x0f:
++				/* keyboard illumination increase */
++				input_report_key(&adbhid[id]->input, KEY_KBDILLUMUP, down);
++				break;
++
++			case 0x7f:
++			case 0xff:
++				/* keypad overlay toogle */
++				break;
++
++			default:
++				printk(KERN_INFO "Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
++				       data[0], data[1], data[2], data[3]);
++				break;
++			}
++			break;
++
++		default:
++			printk(KERN_INFO "Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
++			       data[0], data[1], data[2], data[3]);
++			break;
+ 		}
+ 	  }
+ 	  break;
+@@ -641,6 +678,10 @@
+ 			set_bit(KEY_BRIGHTNESSUP, adbhid[id]->input.keybit);
+ 			set_bit(KEY_BRIGHTNESSDOWN, adbhid[id]->input.keybit);
+ 			set_bit(KEY_EJECTCD, adbhid[id]->input.keybit);
++			set_bit(KEY_SWITCHVIDEOMODE, adbhid[id]->input.keybit);
++			set_bit(KEY_KBDILLUMTOGGLE, adbhid[id]->input.keybit);
++			set_bit(KEY_KBDILLUMDOWN, adbhid[id]->input.keybit);
++			set_bit(KEY_KBDILLUMUP, adbhid[id]->input.keybit);
+ 			break;
+ 		}
+ 		if (adbhid[id]->name[0])
+diff -uNr linux-2.6.3/include/linux/input.h linux-dev/include/linux/input.h
+--- linux-2.6.3/include/linux/input.h	2004-02-18 04:57:42.000000000 +0100
++++ linux-dev/include/linux/input.h	2004-06-17 12:38:51.000000000 +0200
+@@ -328,6 +328,11 @@
+ #define KEY_BRIGHTNESSUP	225
+ #define KEY_MEDIA		226
+ 
++#define KEY_SWITCHVIDEOMODE	227
++#define KEY_KBDILLUMTOGGLE	228
++#define KEY_KBDILLUMDOWN	229
++#define KEY_KBDILLUMUP		230
++
+ #define KEY_UNKNOWN		240
+ 
+ #define BTN_MISC		0x100
